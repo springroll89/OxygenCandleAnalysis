@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# 项目特定
+reports_input/*/
+reports_output/*/
+!reports_output/.gitkeep
+!reports_input/.gitkeep
+*.log
+current_session.txt
+
+# Streamlit
+.streamlit/cache/
+.streamlit/secrets.toml
+
+# 临时文件
+*.tmp
+*.bak
+*_backup*.py
+test_*.py
+web_formula_fix.py
