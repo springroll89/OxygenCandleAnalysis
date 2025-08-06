@@ -12,10 +12,10 @@ jobs:
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.10'
     
@@ -27,7 +27,7 @@ jobs:
     
     - name: Build EXE - 一键运行
       run: |
-        pyinstaller --onefile --name "氧烛分析系统" --icon=icon.ico --noconfirm --clean ^
+        pyinstaller --onefile --name "氧烛分析系统" --noconfirm --clean ^
           --add-data "data;data" ^
           --add-data "modules;modules" ^
           --hidden-import pandas ^
@@ -38,7 +38,7 @@ jobs:
     
     - name: Build EXE - Web界面
       run: |
-        pyinstaller --onefile --name "氧烛分析Web界面" --icon=icon.ico --noconfirm --clean ^
+        pyinstaller --onefile --name "氧烛分析Web界面" --noconfirm --clean ^
           --add-data "data;data" ^
           --add-data "modules;modules" ^
           --hidden-import streamlit ^
@@ -59,18 +59,17 @@ jobs:
         echo. > release\reports_output\.gitkeep
         
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: OxygenCandleAnalysis-Windows
         path: release/
     
     - name: Create Release
       if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: |
           dist/*.exe
-          release.zip
         draft: false
         prerelease: false
       env:
