@@ -1,0 +1,87 @@
+name: Build Simple EXE
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas numpy openpyxl pyinstaller
+    
+    - name: Build EXE
+      run: |
+        pyinstaller --onefile --console --name "氧烛分析系统" standalone_main.py
+    
+    - name: Prepare release folder
+      run: |
+        mkdir release
+        copy dist\*.exe release\
+        xcopy data release\data\ /E /I /Y
+        mkdir release\reports_input
+        mkdir release\reports_output
+    
+    - name: Create batch file (UTF-8 BOM)
+      run: |
+        $content = @"
+@echo off
+chcp 65001 >nul
+echo ========================================
+echo     氧烛产品分析系统
+echo ========================================
+echo.
+echo 请将测试报告放入 reports_input 文件夹
+echo.
+pause
+氧烛分析系统.exe
+pause
+"@
+        $Utf8NoBomEncoding = New-Object System.Text.UTF8Encoding $False
+        [System.IO.File]::WriteAllLines("release\运行程序.bat", $content, $Utf8NoBomEncoding)
+    
+    - name: Create README
+      run: |
+        $readme = @"
+氧烛分析系统 使用说明
+====================
+
+1. 准备数据
+   - 在 reports_input 文件夹中创建产品文件夹
+   - 将Excel测试报告放入对应文件夹
+
+2. 运行分析
+   - 双击 运行程序.bat
+   - 或直接运行 氧烛分析系统.exe
+
+3. 查看结果
+   - 结果保存在 reports_output 文件夹
+
+目录结构示例：
+reports_input/
+  ├── 2A143/
+  │   └── 测试报告.xlsx
+  ├── 2A144/
+  │   └── 测试报告.xlsx
+  └── 2A145/
+      └── 测试报告.xlsx
+"@
+        $readme | Out-File -FilePath "release\使用说明.txt" -Encoding UTF8
+    
+    - name: Upload Release
+      uses: actions/upload-artifact@v4
+      with:
+        name: 氧烛分析系统
+        path: release/
