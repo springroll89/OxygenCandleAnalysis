@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    permissions:
+      contents: write
     
     steps:
     - uses: actions/checkout@v4
@@ -22,7 +24,6 @@ jobs:
     - name: Install packages
       run: |
         cd AWK_Portable
-        # 使用Python 3.8专用的get-pip
         Invoke-WebRequest -Uri "https://bootstrap.pypa.io/pip/3.8/get-pip.py" -OutFile "get-pip.py"
         .\python\python.exe get-pip.py
         .\python\python.exe -m pip install streamlit pandas numpy plotly openpyxl scipy scikit-learn pyDOE2 joblib
@@ -51,7 +52,11 @@ jobs:
         Compress-Archive -Path AWK_Portable -DestinationPath AWK_Windows_Portable.zip
       shell: pwsh
     
-    - uses: actions/upload-artifact@v4
+    - name: Upload to Release
+      uses: svenstaro/upload-release-action@v2
       with:
-        name: AWK-Windows
-        path: AWK_Windows_Portable.zip
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: AWK_Windows_Portable.zip
+        tag: latest
+        overwrite: true
+        body: "Windows便携版 - 自动构建"
