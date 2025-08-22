@@ -1,0 +1,310 @@
+name: Build Windows Portable Package
+
+on:
+  workflow_dispatch:  # 允许手动触发
+    inputs:
+      version:
+        description: 'Version tag'
+        required: true
+        default: 'v1.4'
+  push:
+    branches: [ main ]  # main分支推送时自动构建
+    paths:
+      - '**.py'
+      - 'requirements.txt'
+
+jobs:
+  build-portable:
+    runs-on: windows-latest
+    
+    steps:
+    # 1. 检出代码
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    # 2. 创建目录结构
+    - name: Create directory structure
+      run: |
+        New-Item -ItemType Directory -Force -Path "AWK_Portable"
+        New-Item -ItemType Directory -Force -Path "AWK_Portable\app"
+        New-Item -ItemType Directory -Force -Path "AWK_Portable\app\modules"
+        New-Item -ItemType Directory -Force -Path "AWK_Portable\app\data"
+        New-Item -ItemType Directory -Force -Path "AWK_Portable\app\reports_input"
+        New-Item -ItemType Directory -Force -Path "AWK_Portable\app\reports_output"
+      shell: pwsh
+    
+    # 3. 下载并配置嵌入式Python
+    - name: Setup embedded Python
+      run: |
+        Write-Host "Downloading Python 3.8.10 embedded..." -ForegroundColor Green
+        $pythonUrl = "https://www.python.org/ftp/python/3.8.10/python-3.8.10-embed-amd64.zip"
+        Invoke-WebRequest -Uri $pythonUrl -OutFile "python-embed.zip"
+        
+        Write-Host "Extracting Python..." -ForegroundColor Green
+        Expand-Archive -Path "python-embed.zip" -DestinationPath "AWK_Portable\python" -Force
+        
+        Write-Host "Configuring Python paths..." -ForegroundColor Green
+        $pthContent = @"
+        python38.zip
+        .
+        
+        # Uncomment to run site.main() automatically
+        import site
+        Lib
+        Lib\site-packages
+        "@
+        $pthContent | Out-File -FilePath "AWK_Portable\python\python38._pth" -Encoding ascii
+      shell: pwsh
+    
+    # 4. 安装pip
+    - name: Install pip
+      run: |
+        Write-Host "Installing pip..." -ForegroundColor Green
+        Set-Location -Path "AWK_Portable"
+        Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "get-pip.py"
+        & ".\python\python.exe" get-pip.py --no-warn-script-location
+        Remove-Item "get-pip.py"
+      shell: pwsh
+    
+    # 5. 安装依赖包（使用国内镜像加速）
+    - name: Install dependencies
+      run: |
+        Write-Host "Installing dependencies..." -ForegroundColor Green
+        Set-Location -Path "AWK_Portable"
+        
+        # 创建pip配置以使用镜像
+        $pipConfig = @"
+        [global]
+        index-url = https://pypi.doubanio.com/simple
+        trusted-host = pypi.doubanio.com
+        timeout = 120
+        "@
+        New-Item -ItemType Directory -Force -Path "$env:APPDATA\pip"
+        $pipConfig | Out-File -FilePath "$env:APPDATA\pip\pip.ini" -Encoding ascii
+        
+        # 安装依赖
+        & ".\python\python.exe" -m pip install --no-cache-dir `
+          streamlit==1.28.0 `
+          pandas==1.5.3 `
+          numpy==1.24.3 `
+          matplotlib==3.7.1 `
+          plotly==5.17.0 `
+          openpyxl==3.1.2 `
+          scipy==1.10.1 `
+          scikit-learn==1.3.0 `
+          pyDOE2==1.3.0 `
+          joblib==1.3.2
+      shell: pwsh
+    
+    # 6. 复制应用文件
+    - name: Copy application files
+      run: |
+        Write-Host "Copying application files..." -ForegroundColor Green
+        
+        # 复制Python文件
+        Copy-Item "*.py" -Destination "AWK_Portable\app\" -Force
+        
+        # 复制模块目录
+        if (Test-Path "modules") {
+          Copy-Item "modules\*" -Destination "AWK_Portable\app\modules\" -Recurse -Force
+        }
+        
+        # 复制数据目录
+        if (Test-Path "data") {
+          Copy-Item "data\*" -Destination "AWK_Portable\app\data\" -Recurse -Force
+        }
+        
+        # 复制requirements.txt作为参考
+        Copy-Item "requirements.txt" -Destination "AWK_Portable\" -Force
+      shell: pwsh
+    
+    # 7. 创建Streamlit配置
+    - name: Create Streamlit config
+      run: |
+        Write-Host "Creating Streamlit configuration..." -ForegroundColor Green
+        New-Item -ItemType Directory -Force -Path "AWK_Portable\app\.streamlit"
+        
+        $configContent = @"
+        [global]
+        developmentMode = false
+        
+        [server]
+        port = 8501
+        address = "localhost"
+        headless = true
+        runOnSave = false
+        maxUploadSize = 200
+        enableCORS = false
+        enableXsrfProtection = true
+        
+        [browser]
+        gatherUsageStats = false
+        serverAddress = "localhost"
+        serverPort = 8501
+        
+        [theme]
+        base = "light"
+        primaryColor = "#FF6B6B"
+        "@
+        $configContent | Out-File -FilePath "AWK_Portable\app\.streamlit\config.toml" -Encoding ascii
+      shell: pwsh
+    
+    # 8. 创建启动脚本
+    - name: Create launch scripts
+      run: |
+        Write-Host "Creating launch scripts..." -ForegroundColor Green
+        
+        # 主启动脚本
+        $mainLauncher = @'
+        @echo off
+        chcp 65001 >nul 2>&1
+        title AWK氧烛分析系统
+        
+        cd /d "%~dp0"
+        
+        echo ========================================
+        echo     AWK氧烛分析系统 v1.4 便携版
+        echo ========================================
+        echo.
+        
+        :: 检查端口
+        netstat -an | findstr :8501 >nul 2>&1
+        if %errorlevel% == 0 (
+            echo [警告] 端口8501已被占用
+            echo 请关闭占用该端口的程序后重试
+            pause
+            exit /b 1
+        )
+        
+        echo [1/3] 配置环境...
+        set PATH=%CD%\python;%CD%\python\Scripts;%PATH%
+        set PYTHONPATH=%CD%\app
+        
+        echo [2/3] 启动服务...
+        echo.
+        echo 系统将在浏览器中打开，如未自动打开请访问：
+        echo http://localhost:8501
+        echo.
+        echo 默认密码：<set via OXYGEN_CANDLE_PASSWORD>
+        echo.
+        echo 按 Ctrl+C 可以停止程序
+        echo ========================================
+        echo.
+        
+        :: 延迟3秒后打开浏览器
+        timeout /t 3 /nobreak >nul
+        start "" "http://localhost:8501"
+        
+        :: 启动Streamlit
+        cd app
+        ..\python\python.exe -m streamlit run 网页系统.py
+        
+        pause
+        '@
+        $mainLauncher | Out-File -FilePath "AWK_Portable\启动系统.bat" -Encoding Default
+        
+        # 快速启动脚本（无提示）
+        $quickLauncher = @'
+        @echo off
+        cd /d "%~dp0"
+        set PATH=%CD%\python;%CD%\python\Scripts;%PATH%
+        set PYTHONPATH=%CD%\app
+        start "" "http://localhost:8501"
+        cd app
+        ..\python\python.exe -m streamlit run 网页系统.py
+        '@
+        $quickLauncher | Out-File -FilePath "AWK_Portable\快速启动.bat" -Encoding Default
+        
+        # 停止脚本
+        $stopScript = @'
+        @echo off
+        echo 正在停止AWK系统...
+        taskkill /F /IM python.exe /T >nul 2>&1
+        echo 已停止
+        pause
+        '@
+        $stopScript | Out-File -FilePath "AWK_Portable\停止系统.bat" -Encoding Default
+      shell: pwsh
+    
+    # 9. 创建使用说明
+    - name: Create README
+      run: |
+        $readme = @"
+        AWK氧烛分析系统 - Windows便携版
+        ================================
+        
+        版本：v1.4
+        构建时间：$(Get-Date -Format "yyyy-MM-dd HH:mm")
+        
+        【使用方法】
+        1. 解压到英文路径（避免中文路径）
+        2. 双击"启动系统.bat"
+        3. 浏览器自动打开系统
+        4. 登录密码：<set via OXYGEN_CANDLE_PASSWORD>
+        
+        【文件说明】
+        - 启动系统.bat：正常启动（有提示信息）
+        - 快速启动.bat：快速启动（无提示）
+        - 停止系统.bat：强制停止程序
+        
+        【数据目录】
+        - 输入数据：app\reports_input\
+        - 输出结果：app\reports_output\
+        - 配置文件：app\data\
+        
+        【常见问题】
+        Q: 提示端口被占用
+        A: 运行"停止系统.bat"后重试
+        
+        Q: 浏览器打不开
+        A: 手动访问 http://localhost:8501
+        
+        Q: 需要修改端口
+        A: 编辑 app\.streamlit\config.toml 中的 port
+        
+        【技术支持】
+        作者：shiding
+        "@
+        $readme | Out-File -FilePath "AWK_Portable\使用说明.txt" -Encoding UTF8
+      shell: pwsh
+    
+    # 10. 清理和优化
+    - name: Clean and optimize
+      run: |
+        Write-Host "Cleaning unnecessary files..." -ForegroundColor Green
+        
+        # 删除不需要的文件
+        Get-ChildItem -Path "AWK_Portable" -Include "*.pyc", "*.pyo", "__pycache__" -Recurse | Remove-Item -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -Path "AWK_Portable\python" -Include "*.exe" | Where-Object { $_.Name -notmatch "python|pip" } | Remove-Item -Force -ErrorAction SilentlyContinue
+        
+        # 显示包大小
+        $size = (Get-ChildItem -Path "AWK_Portable" -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
+        Write-Host "Package size: $([math]::Round($size, 2)) MB" -ForegroundColor Yellow
+      shell: pwsh
+    
+    # 11. 创建压缩包
+    - name: Create archive
+      run: |
+        Write-Host "Creating archive..." -ForegroundColor Green
+        Compress-Archive -Path "AWK_Portable" -DestinationPath "AWK_System_Portable_Win64.zip" -CompressionLevel Optimal
+        
+        $zipSize = (Get-Item "AWK_System_Portable_Win64.zip").Length / 1MB
+        Write-Host "Archive size: $([math]::Round($zipSize, 2)) MB" -ForegroundColor Yellow
+      shell: pwsh
+    
+    # 12. 上传构建结果
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: AWK-System-Windows-Portable
+        path: AWK_System_Portable_Win64.zip
+        retention-days: 30
+    
+    # 13. 创建Release（如果是tag触发）
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: AWK_System_Portable_Win64.zip
+        draft: false
+        prerelease: false
