@@ -5,3 +5,12 @@ venv/
 reports_output/*/
 *.log
 *.tmp
+
+# 本地实验输入、参考表格和生成结果不进入公开仓库
+reports_input/**
+!reports_input/.gitkeep
+reports_output/**
+!reports_output/.gitkeep
+data/*.xlsx
+data/*.csv
+.idea/

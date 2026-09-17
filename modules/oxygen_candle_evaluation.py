@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 评价系统模块 - 氧烛产品性能综合评价
-路径: .
+路径: repository-relative paths
 """
 
 import pandas as pd

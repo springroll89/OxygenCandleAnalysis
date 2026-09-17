@@ -1000,7 +1000,7 @@ reports_output/
 
 2. **登录系统**：
 
-   - 默认密码：`<set via OXYGEN_CANDLE_PASSWORD>`
+   - 登录密码不会保存在仓库中。启动前请设置环境变量 `OXYGEN_CANDLE_PASSWORD`。
 
 3. **功能导航**：
 
@@ -1283,8 +1283,8 @@ shiding
 
 ## 📮 联系方式
 
-- Issue: [GitHub Issues](https://github.com/xxx/issues)
-- Email: contact via GitHub Issues
+- Issue: [GitHub Issues](https://github.com/springroll89/OxygenCandleAnalysis/issues)
+- 联系方式：请通过 GitHub Issues 联系
 
 ------
 

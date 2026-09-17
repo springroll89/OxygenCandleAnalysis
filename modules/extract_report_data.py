@@ -3,7 +3,7 @@
 """
 改进的数据提取模块 - 支持文件夹结构
 适配每个样品一个文件夹的组织方式
-路径: .
+路径: repository-relative paths
 """
 
 import os
@@ -411,8 +411,8 @@ if __name__ == "__main__":
     print("=" * 60)
     
     # 设置路径
-    input_dir = "."
-    output_dir = "."
+    input_dir = "./reports_input"
+    output_dir = "./reports_output"
     
     # 创建提取器
     extractor = ImprovedReportExtractor(input_dir, output_dir)

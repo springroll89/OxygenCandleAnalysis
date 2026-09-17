@@ -51,7 +51,10 @@ if 'ml_target_score_used' not in st.session_state:
     st.session_state.ml_target_score_used = None
 
 # ===== 密码验证部分 =====
-PASSWORD = os.environ.get("OXYGEN_CANDLE_PASSWORD", "")
+PASSWORD = os.environ.get("OXYGEN_CANDLE_PASSWORD", "").strip()
+if not PASSWORD:
+    st.error("未配置 OXYGEN_CANDLE_PASSWORD，应用已停止。")
+    st.stop()
 
 def check_password():
     """简单密码验证"""
